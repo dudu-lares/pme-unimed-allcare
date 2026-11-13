@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cotação PME Unimed-BH</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: '#16a34a', primaryDark: '#15803d' }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase & html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .glass-panel { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); }
+        input, button, select { -webkit-appearance: none; appearance: none; }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen font-sans text-gray-800 relative bg-cover bg-center transition-all duration-500" id="bodyBg" style="background-image: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('https://i.postimg.cc/yYN5S4bP/UNIMED-GIGANTE.jpg');">
+
+    <!-- Header Responsivo -->
+    <header class="absolute top-0 left-0 right-0 p-3 sm:p-4 flex justify-between items-center z-20 max-w-4xl mx-auto">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shadow-md p-1">
+                <img src="https://i.postimg.cc/0jpQ0xfV/IMAGEM-UNIMED-1.png" class="w-full h-full object-contain">
+            </div>
+            <span class="text-white font-bold text-sm sm:text-lg drop-shadow-md">Cotação Unimed-BH</span>
+        </div>
+        <button onclick="openAdminModal()" class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl backdrop-blur-md transition text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-lg border border-white/30">
+            <i class="fa-solid fa-lock"></i> Admin
+        </button>
+    </header>
+
+    <!-- Main Container Responsivo -->
+    <main class="min-h-screen flex items-center justify-center p-3 sm:p-4 pt-20 pb-12 z-10 relative">
+        <div id="participantView" class="w-full max-w-2xl glass-panel rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 border border-white/20 transition-all duration-300">
+            
+            <!-- Barra de Progresso -->
+            <div id="progressBarContainer" class="mb-5">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-500 mb-1.5">
+                    <span id="progressStepText">Passo 1</span>
+                    <span id="progressPercentText">20%</span>
+                </div>
+                <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                    <div id="progressBar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 20%;"></div>
+                </div>
+            </div>
+
+            <!-- Quiz / Fluxo de Cotação -->
+            <div id="quizContainer">
+                <div id="questionWrapper" class="mb-6"></div>
+
+                <div class="flex justify-between items-center pt-3 border-t border-gray-100">
+                    <button id="btnPrev" onclick="prevStep()" class="px-4 py-2 rounded-xl border border-gray-300 font-medium text-gray-600 hover:bg-gray-50 transition text-sm hidden">
+                        <i class="fa-solid fa-arrow-left mr-1"></i> Anterior
+                    </button>
+                    <div class="ml-auto flex gap-2">
+                        <button id="btnNext" onclick="nextStep()" class="px-5 py-2.5 rounded-xl bg-primary hover:bg-primaryDark text-white font-semibold shadow-md transition flex items-center gap-2 text-sm">
+                            Avançar <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tela de Confirmação Intermediária -->
+            <div id="confirmationContainer" class="hidden text-center py-4 space-y-3">
+                <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl shadow-inner">
+                    <i class="fa-solid fa-circle-question"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Confirmar Resposta</h3>
+                <p class="text-gray-600 text-xs sm:text-sm px-2" id="confirmationText">Você digitou...</p>
+                <div class="flex justify-center gap-2 pt-2">
+                    <button onclick="editCurrentAnswer()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 font-semibold rounded-xl text-xs sm:text-sm transition">
+                        <i class="fa-solid fa-pen mr-1"></i> Corrigir
+                    </button>
+                    <button onclick="confirmAndProceed()" class="px-5 py-2 bg-primary hover:bg-primaryDark text-white font-semibold rounded-xl text-xs sm:text-sm shadow transition">
+                        Confirmar e Continuar <i class="fa-solid fa-check ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tela de Conclusão / Resumo de Cotação -->
+            <div id="completionContainer" class="hidden space-y-4">
+                
+                <!-- Área capturável -->
+                <div id="captureArea" class="bg-white p-4 sm:p-6 rounded-2xl space-y-5 border shadow-sm">
+                    <div class="text-center">
+                        <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 overflow-hidden shadow-inner p-1 bg-gray-50 border">
+                            <img src="https://i.postimg.cc/0jpQ0xfV/IMAGEM-UNIMED-1.png" class="w-full h-full object-contain">
+                        </div>
+                        <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Resumo da Cotação PME</h2>
+                        <p class="text-gray-600 text-xs sm:text-sm mt-1" id="summaryHeaderDesc">Plano para X pessoas</p>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="overflow-x-auto border rounded-xl bg-white shadow-sm">
+                        <table class="w-full text-left border-collapse text-[11px] sm:text-xs min-w-[450px]">
+                            <thead>
+                                <tr class="bg-gray-800 text-white">
+                                    <th class="p-2.5">Faixa Etária</th>
+                                    <th class="p-2.5 text-center">Qtd</th>
+                                    <th class="p-2.5 text-right">Unifácil Enf.</th>
+                                    <th class="p-2.5 text-right">Unipart Enf.</th>
+                                    <th class="p-2.5 text-right">Unipart Apt.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotationTableBody" class="divide-y divide-gray-100"></tbody>
+                            <tfoot>
+                                <tr class="bg-emerald-50 font-bold text-gray-800 border-t-2 border-primary">
+                                    <td class="p-2.5">TOTAL GERAL</td>
+                                    <td class="p-2.5 text-center" id="totalLivesFooter">0</td>
+                                    <td class="p-2.5 text-right text-emerald-700" id="totalPlan1">R$ 0,00</td>
+                                    <td class="p-2.5 text-right text-emerald-700" id="totalPlan2">R$ 0,00</td>
+                                    <td class="p-2.5 text-right text-emerald-700" id="totalPlan3">R$ 0,00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Explicação Fixa dos Planos -->
+                    <div class="grid grid-cols-1 gap-3 pt-1">
+                        <div class="border rounded-xl p-3 bg-gray-50/50 space-y-1.5">
+                            <h4 class="font-bold text-primary text-sm">Unifácil</h4>
+                            <p class="text-[11px] sm:text-xs text-gray-600">Economia para cuidar com segurança. Cuide da saúde sem deixar o orçamento de lado. Com o Unifácil, você conta com uma rede de médicos e prestadores selecionados.</p>
+                            <ul class="text-[11px] sm:text-xs text-gray-600 space-y-0.5 list-disc pl-3">
+                                <li>Rede credenciada com mais de 1,6 mil médicos</li>
+                                <li>Mais de 25 hospitais e 220 clínicas e laboratórios</li>
+                                <li>Qualidade Unimed-BH com mais economia</li>
+                                <li>Urgência e emergência Nacional hospitais Unimed</li>
+                            </ul>
+                        </div>
+                        <div class="border rounded-xl p-3 bg-gray-50/50 space-y-1.5">
+                            <h4 class="font-bold text-primary text-sm">Unipart Flex</h4>
+                            <p class="text-[11px] sm:text-xs text-gray-600">Plano completo com maior rede de atendimento. Tenha a tranquilidade de contar com a maior rede da região e liberdade de escolha.</p>
+                            <ul class="text-[11px] sm:text-xs text-gray-600 space-y-0.5 list-disc pl-3">
+                                <li>Mais de 5,4 mil médicos cooperados</li>
+                                <li>Mais de 39 hospitais e 270 clínicas e laboratórios</li>
+                                <li>Flexibilidade na mensalidade e coparticipação</li>
+                                <li>Urgência e emergência Nacional hospitais Unimed</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação Final -->
+                <div class="flex flex-col gap-2.5 pt-2">
+                    <button onclick="copyQuotationAsImage()" class="w-full py-3 bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                        <i class="fa-solid fa-copy"></i> Copiar Cotação como Imagem
+                    </button>
+                    <a id="finalCustomBtn" href="#" target="_blank" class="w-full text-center py-3 bg-primary hover:bg-primaryDark text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                        <i class="fa-brands fa-whatsapp text-base"></i> Enviar no WhatsApp
+                    </a>
+                    <button onclick="restartQuiz()" class="w-full py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                        <i class="fa-solid fa-rotate-right"></i> Iniciar Nova Cotação
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal Admin -->
+    <div id="adminModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+        <div id="adminLoginBox" class="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Painel Admin</h3>
+            <p class="text-gray-500 text-xs sm:text-sm mb-4">Digite a senha para gerenciar.</p>
+            <form onsubmit="handleAdminLogin(event)" class="space-y-3 text-left">
+                <input type="password" id="adminPasswordInput" placeholder="Senha (admin123)" required class="w-full px-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                <button type="submit" class="w-full py-2.5 bg-primary text-white font-semibold rounded-xl shadow text-sm">Entrar</button>
+            </form>
+            <button onclick="closeAdminModal()" class="mt-3 text-xs text-gray-400">Voltar</button>
+        </div>
+
+        <div id="adminDashboardBox" class="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col hidden overflow-hidden">
+            <div class="px-4 sm:px-6 py-3 bg-gray-50 border-b flex justify-between items-center">
+                <h3 class="font-bold text-gray-800 text-sm">Painel de Configuração</h3>
+                <button onclick="closeAdminModal()" class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="flex border-b bg-gray-50/50 px-4 gap-4 text-xs font-semibold overflow-x-auto">
+                <button onclick="switchAdminTab('questions')" id="tabBtnQuestions" class="py-3 border-b-2 border-primary text-primary whitespace-nowrap">Gerenciar Perguntas</button>
+                <button onclick="switchAdminTab('prices')" id="tabBtnPrices" class="py-3 border-b-2 border-transparent text-gray-500 whitespace-nowrap">Tabela de Preços</button>
+                <button onclick="switchAdminTab('whatsapp')" id="tabBtnWhatsapp" class="py-3 border-b-2 border-transparent text-gray-500 whitespace-nowrap">Configurar WhatsApp</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
+                <!-- Aba Perguntas -->
+                <div id="adminTabQuestions" class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl border flex justify-between items-center">
+                        <span class="font-bold text-xs sm:text-sm">Perguntas Extras do Quiz</span>
+                        <div class="flex gap-2">
+                            <button onclick="addNewCustomQuestion()" class="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-semibold shadow">Nova</button>
+                            <button onclick="deleteAllQuestions()" class="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-semibold shadow">Excluir Tudo</button>
+                        </div>
+                    </div>
+                    <div id="adminQuestionsList" class="space-y-3"></div>
+                </div>
+
+                <!-- Aba Tabela de Preços -->
+                <div id="adminTabPrices" class="space-y-3 hidden">
+                    <div class="bg-white p-3 rounded-xl border flex justify-between items-center">
+                        <span class="font-bold text-xs sm:text-sm">Tabela de Valores Unimed-BH (PME)</span>
+                        <button onclick="addPriceRow()" class="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-semibold shadow"><i class="fa-solid fa-plus"></i> Nova Faixa</button>
+                    </div>
+                    <div class="overflow-x-auto bg-white rounded-xl border shadow-sm">
+                        <table class="w-full text-left text-xs min-w-[500px]">
+                            <thead>
+                                <tr class="bg-gray-100 text-gray-700">
+                                    <th class="p-2">Faixa Etária / Nome</th>
+                                    <th class="p-2">Min</th>
+                                    <th class="p-2">Max</th>
+                                    <th class="p-2">Unifácil Enf. (R$)</th>
+                                    <th class="p-2">Unipart Enf. (R$)</th>
+                                    <th class="p-2">Unipart Apt. (R$)</th>
+                                    <th class="p-2 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminPricesTableBody" class="divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Aba WhatsApp -->
+                <div id="adminTabWhatsapp" class="space-y-4 hidden">
+                    <div class="bg-white p-4 rounded-xl border space-y-3">
+                        <h4 class="font-bold text-sm text-gray-800">Configurações do Botão do WhatsApp</h4>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Número do WhatsApp (com DDI e DDD, ex: 5531999999999):</label>
+                            <input type="text" id="adminPhoneInput" class="w-full px-3 py-2 border rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Mensagem padrão que vai para o WhatsApp:</label>
+                            <textarea id="adminWaMsgInput" rows="3" class="w-full px-3 py-2 border rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-primary focus:outline-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-4 py-3 bg-gray-100 border-t flex justify-end">
+                <button onclick="saveAdminChanges()" class="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-semibold shadow">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Principal -->
+    <script>
+        const SUPABASE_URL = "https://ptjarldpithqslzwsndu.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_hFI5g51uFUqcZP5CiiVzrg_4GwqwTIM";
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let quizState = {
+            adminPassword: "admin123",
+            whatsappNumber: "5531999999999",
+            whatsappMessage: "Olá, gostaria de fechar o plano Unimed-BH",
+            customQuestions: [],
+            unimedTable: [
+                { faixas: "0 - 18 anos", min: 0, max: 18, p1: 143.77, p2: 202.21, p3: 273.01 },
+                { faixas: "19 - 23 anos", min: 19, max: 23, p1: 172.53, p2: 242.64, p3: 327.61 },
+                { faixas: "24 - 28 anos", min: 24, max: 28, p1: 213.95, p2: 300.88, p3: 406.25 },
+                { faixas: "29 - 33 anos", min: 29, max: 33, p1: 265.27, p2: 373.10, p3: 503.73 },
+                { faixas: "34 - 38 anos", min: 34, max: 38, p1: 297.12, p2: 417.87, p3: 564.19 },
+                { faixas: "39 - 43 anos", min: 39, max: 43, p1: 308.97, p2: 434.59, p3: 586.75 },
+                { faixas: "44 - 48 anos", min: 44, max: 48, p1: 389.34, p2: 547.58, p3: 739.29 },
+                { faixas: "49 - 53 anos", min: 49, max: 53, p1: 443.82, p2: 624.24, p3: 842.82 },
+                { faixas: "54 - 58 anos", min: 54, max: 58, p1: 528.14, p2: 742.84, p3: 1002.94 },
+                { faixas: "59 anos ou mais", min: 59, max: 120, p1: 860.87, p2: 1210.81, p3: 1634.80 }
+            ]
+        };
+
+        let workflowSteps = [];
+        let currentStepIndex = 0;
+        let userData = {
+            totalVidas: 1,
+            idades: [],
+            customAnswers: {}
+        };
+        let pendingAnswer = null;
+
+        window.onload = async function() {
+            await loadConfigFromSupabase();
+            buildWorkflow();
+            renderStep();
+        };
+
+        async function loadConfigFromSupabase() {
+            try {
+                const { data } = await supabaseClient.from('quiz_settings').select('*').eq('id', 2).single();
+                if (data && data.data) {
+                    quizState = { ...quizState, ...data.data };
+                }
+            } catch(e) {}
+        }
+
+        async function saveConfigToSupabase() {
+            await supabaseClient.from('quiz_settings').upsert({ id: 2, data: quizState });
+        }
+
+        function buildWorkflow() {
+            workflowSteps = [];
+            quizState.customQuestions.forEach((q, idx) => {
+                workflowSteps.push({ type: 'custom', index: idx, title: q.title, options: q.options, qType: q.qType || 'single', required: q.required !== false });
+            });
+            workflowSteps.push({ type: 'vidas', title: "Quantas pessoas terá no plano?" });
+        }
+
+        function buildWorkflowWithAges() {
+            workflowSteps = [];
+            quizState.customQuestions.forEach((q, idx) => {
+                workflowSteps.push({ type: 'custom', index: idx, title: q.title, options: q.options, qType: q.qType || 'single', required: q.required !== false });
+            });
+            workflowSteps.push({ type: 'vidas', title: "Quantas pessoas terá no plano?" });
+            for (let i = 0; i < userData.totalVidas; i++) {
+                workflowSteps.push({ type: 'idade', vidaIndex: i, title: `Qual a idade da ${i+1}ª pessoa?`, required: true });
+            }
+        }
+
+        function renderStep() {
+            if (currentStepIndex >= workflowSteps.length) {
+                showSummaryScreen();
+                return;
+            }
+
+            const step = workflowSteps[currentStepIndex];
+            const total = workflowSteps.length;
+            const percent = Math.round(((currentStepIndex + 1) / total) * 100);
+            document.getElementById('progressStepText').innerText = `Passo ${currentStepIndex + 1} de ${total}`;
+            document.getElementById('progressPercentText').innerText = `${percent}%`;
+            document.getElementById('progressBar').style.width = `${percent}%`;
+
+            document.getElementById('quizContainer').classList.remove('hidden');
+            document.getElementById('confirmationContainer').classList.add('hidden');
+            
+            const wrapper = document.getElementById('questionWrapper');
+            let html = '';
+
+            if (step.type === 'vidas') {
+                html = `
+                    <div class="mb-3"><span class="text-[11px] font-bold text-primary uppercase">Cotação Unimed-BH</span><h3 class="text-lg sm:text-xl font-bold text-gray-800 mt-0.5">${step.title} <span class="text-rose-500">*</span></h3></div>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `
+                            <button type="button" onclick="selectVidasOption(${n})" class="py-2.5 px-2 rounded-xl border text-center font-bold text-xs sm:text-sm transition ${userData.totalVidas === n ? 'bg-primary text-white border-primary shadow-md' : 'bg-white hover:bg-gray-50 border-gray-200'}">
+                                ${n} ${n === 10 ? 'ou mais' : ''} pessoa${n>1?'s':''}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+            } else if (step.type === 'idade') {
+                const vidaNum = step.vidaIndex + 1;
+                const idadeAtual = userData.idades[step.vidaIndex] !== undefined ? userData.idades[step.vidaIndex] : '';
+                html = `
+                    <div class="mb-3"><span class="text-[11px] font-bold text-primary uppercase">Idade dos Participantes</span><h3 class="text-lg sm:text-xl font-bold text-gray-800 mt-0.5">Qual é a idade da ${vidaNum}ª pessoa? <span class="text-rose-500">*</span></h3></div>
+                    <div>
+                        <input type="number" id="inputAgeVal" min="0" max="120" value="${idadeAtual}" placeholder="Ex: 30" class="w-full px-4 py-3 rounded-xl border text-base sm:text-lg font-semibold focus:ring-2 focus:ring-primary focus:outline-none">
+                    </div>
+                `;
+            } else if (step.type === 'custom') {
+                const q = quizState.customQuestions[step.index];
+                const saved = userData.customAnswers[step.index] || '';
+                html = `
+                    <div class="mb-3"><span class="text-[11px] font-bold text-primary uppercase">Informação Adicional</span><h3 class="text-lg sm:text-xl font-bold text-gray-800 mt-0.5">${q.title} ${q.required !== false ? '<span class="text-rose-500">*</span>' : ''}</h3></div>
+                `;
+                if (q.qType === 'text') {
+                    html += `<div><textarea id="customTextVal" rows="3" placeholder="Digite sua resposta..." class="w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 focus:ring-primary focus:outline-none">${saved}</textarea></div>`;
+                } else if (q.qType === 'phone') {
+                    html += `<div><input type="tel" id="customPhoneVal" value="${saved}" placeholder="Ex: 31971127212 (DDD + 9 dígitos)" maxlength="11" class="w-full px-4 py-3 rounded-xl border text-base font-semibold focus:ring-2 focus:ring-primary focus:outline-none"></div>`;
+                } else if (q.qType === 'rating') {
+                    html += `<div class="flex justify-center gap-2 py-3">`;
+                    ["1", "2", "3", "4", "5"].forEach(star => {
+                        html += `<button type="button" onclick="userData.customAnswers[${step.index}]='${star}'; renderStep();" class="w-10 h-10 rounded-xl font-bold text-sm border transition ${saved === star ? 'bg-primary text-white border-primary shadow' : 'bg-white text-gray-700 border-gray-200'}">${star}</button>`;
+                    });
+                    html += `</div>`;
+                } else {
+                    html += `<div class="space-y-2">`;
+                    q.options.forEach(opt => {
+                        html += `
+                            <label class="flex items-center p-3 rounded-xl border cursor-pointer transition text-sm ${saved === opt ? 'border-primary bg-primary/5' : 'bg-white border-gray-200'}">
+                                <input type="radio" name="custom_opt_${step.index}" value="${opt}" ${saved===opt?'checked':''} onchange="userData.customAnswers[${step.index}]='${opt}'; renderStep();" class="w-4 h-4 text-primary">
+                                <span class="ml-3 font-medium text-gray-700">${opt}</span>
+                            </label>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+            }
+
+            wrapper.innerHTML = html;
+            document.getElementById('btnPrev').classList.toggle('hidden', currentStepIndex === 0);
+        }
+
+        function selectVidasOption(n) {
+            userData.totalVidas = n;
+            buildWorkflowWithAges();
+            currentStepIndex++;
+            renderStep();
+        }
+
+        function nextStep() {
+            const step = workflowSteps[currentStepIndex];
+            if (step.type === 'idade') {
+                const val = document.getElementById('inputAgeVal').value;
+                if (step.required && (!val && val !== 0)) { alert("Este campo é obrigatório."); return; }
+                if (val < 0) { alert("Digite uma idade válida."); return; }
+                pendingAnswer = { vidaIndex: step.vidaIndex, age: parseInt(val) };
+                showConfirmation(`Idade da ${step.vidaIndex + 1}ª pessoa: <strong>${val} anos</strong>`);
+                return;
+            } else if (step.type === 'custom') {
+                const q = quizState.customQuestions[step.index];
+                if (q.qType === 'text') {
+                    const txt = document.getElementById('customTextVal').value;
+                    if (q.required !== false && !txt.trim()) { alert("Esta resposta é obrigatória."); return; }
+                    userData.customAnswers[step.index] = txt;
+                } else if (q.qType === 'phone') {
+                    const phone = document.getElementById('customPhoneVal').value.trim();
+                    const phoneRegex = /^[0-9]{11}$/; // Ex: 31971127212 (2 digitos DDD + 9 digitos + numero)
+                    if (q.required !== false && !phone) { alert("O telefone é obrigatório."); return; }
+                    if (phone && !phoneRegex.test(phone)) {
+                        alert("Formato de telefone inválido! Digite exatamente o DDD + 9 dígitos (Ex: 31971127212).");
+                        return;
+                    }
+                    userData.customAnswers[step.index] = phone;
+                } else {
+                    const ans = userData.customAnswers[step.index];
+                    if (q.required !== false && !ans) { alert("Selecione uma opção obrigatória."); return; }
+                }
+            }
+            currentStepIndex++;
+            renderStep();
+        }
+
+        function showConfirmation(htmlMsg) {
+            document.getElementById('quizContainer').classList.add('hidden');
+            document.getElementById('confirmationContainer').classList.remove('hidden');
+            document.getElementById('confirmationText').innerHTML = htmlMsg;
+        }
+
+        function confirmAndProceed() {
+            if (pendingAnswer) {
+                userData.idades[pendingAnswer.vidaIndex] = pendingAnswer.age;
+                pendingAnswer = null;
+            }
+            document.getElementById('confirmationContainer').classList.add('hidden');
+            currentStepIndex++;
+            renderStep();
+        }
+
+        function editCurrentAnswer() {
+            document.getElementById('confirmationContainer').classList.add('hidden');
+            document.getElementById('quizContainer').classList.remove('hidden');
+        }
+
+        function prevStep() {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                renderStep();
+            }
+        }
+
+        async function showSummaryScreen() {
+            document.getElementById('progressBarContainer').classList.add('hidden');
+            document.getElementById('quizContainer').classList.add('hidden');
+            document.getElementById('confirmationContainer').classList.add('hidden');
+            document.getElementById('completionContainer').classList.remove('hidden');
+
+            document.getElementById('summaryHeaderDesc').innerText = `Plano para ${userData.totalVidas} pessoa(s) | Idades: ${userData.idades.join(', ')} anos`;
+
+            let faixaCounts = {};
+            quizState.unimedTable.forEach(f => faixaCounts[f.faixas] = { count: 0, p1: f.p1, p2: f.p2, p3: f.p3, min: f.min, max: f.max });
+
+            userData.idades.forEach(idade => {
+                const faixaObj = quizState.unimedTable.find(f => idade >= f.min && idade <= f.max);
+                if (faixaObj) {
+                    faixaCounts[faixaObj.faixas].count++;
+                }
+            });
+
+            let tbodyHtml = '';
+            let totP1 = 0, totP2 = 0, totP3 = 0, totVidasCount = 0;
+
+            Object.keys(faixaCounts).forEach(faixaKey => {
+                const item = faixaCounts[faixaKey];
+                if (item.count > 0) {
+                    const subP1 = item.count * item.p1;
+                    const subP2 = item.count * item.p2;
+                    const subP3 = item.count * item.p3;
+
+                    totP1 += subP1;
+                    totP2 += subP2;
+                    totP3 += subP3;
+                    totVidasCount += item.count;
+
+                    tbodyHtml += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-2.5 font-semibold text-gray-700">${faixaKey}</td>
+                            <td class="p-2.5 text-center font-bold">${item.count}</td>
+                            <td class="p-2.5 text-right">R$ ${subP1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                            <td class="p-2.5 text-right">R$ ${subP2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                            <td class="p-2.5 text-right">R$ ${subP3.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            document.getElementById('quotationTableBody').innerHTML = tbodyHtml;
+            document.getElementById('totalLivesFooter').innerText = totVidasCount;
+            document.getElementById('totalPlan1').innerText = `R$ ${totP1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('totalPlan2').innerText = `R$ ${totP2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('totalPlan3').innerText = `R$ ${totP3.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+            const phoneNum = quizState.whatsappNumber || "5531999999999";
+            const waMsg = encodeURIComponent(quizState.whatsappMessage || "Olá, gostaria de fechar o plano Unimed-BH");
+            document.getElementById('finalCustomBtn').href = `https://wa.me/${phoneNum}?text=${waMsg}`;
+
+            await supabaseClient.from('quiz_submissions').insert([{
+                date: new Date().toLocaleString(),
+                answers: { vidas: userData.totalVidas, idades: userData.idades, custom: userData.customAnswers, totals: { p1: totP1, p2: totP2, p3: totP3 } }
+            }]);
+        }
+
+        async function copyQuotationAsImage() {
+            const captureElement = document.getElementById('captureArea');
+            try {
+                const canvas = await html2canvas(captureElement, { scale: 2, useCORS: true });
+                canvas.toBlob(async (blob) => {
+                    try {
+                        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                        alert("Cotação copiada com sucesso! Cole no WhatsApp.");
+                    } catch (err) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'cotacao_unimed.png';
+                        a.click();
+                        alert("Imagem gerada e baixada com sucesso!");
+                    }
+                });
+            } catch (err) {
+                alert("Erro ao gerar imagem da cotação.");
+            }
+        }
+
+        function restartQuiz() {
+            currentStepIndex = 0;
+            userData = { totalVidas: 1, idades: [], customAnswers: {} };
+            document.getElementById('completionContainer').classList.add('hidden');
+            document.getElementById('progressBarContainer').classList.remove('hidden');
+            buildWorkflow();
+            renderStep();
+        }
+
+        function openAdminModal() {
+            document.getElementById('adminPhoneInput').value = quizState.whatsappNumber || "";
+            document.getElementById('adminWaMsgInput').value = quizState.whatsappMessage || "";
+            document.getElementById('adminModal').classList.remove('hidden');
+        }
+        function closeAdminModal() { document.getElementById('adminModal').classList.add('hidden'); }
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            if (document.getElementById('adminPasswordInput').value === quizState.adminPassword) {
+                document.getElementById('adminLoginBox').classList.add('hidden');
+                document.getElementById('adminDashboardBox').classList.remove('hidden');
+                renderAdminQuestions();
+                renderAdminPrices();
+            } else { alert("Senha incorreta!"); }
+        }
+
+        function switchAdminTab(tab) {
+            ['Questions', 'Prices', 'Whatsapp'].forEach(t => {
+                document.getElementById(`adminTab${t}`).classList.add('hidden');
+                document.getElementById(`tabBtn${t}`).className = "py-3 border-b-2 border-transparent text-gray-500 font-semibold whitespace-nowrap";
+            });
+            document.getElementById(`adminTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+            document.getElementById(`tabBtn${tab.charAt(0).toUpperCase() + tab.slice(1)}`).className = "py-3 border-b-2 border-primary text-primary font-semibold whitespace-nowrap";
+        }
+
+        function renderAdminQuestions() {
+            const list = document.getElementById('adminQuestionsList');
+            if (!quizState.customQuestions.length) {
+                list.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">Nenhuma pergunta extra cadastrada.</p>`;
+                return;
+            }
+            list.innerHTML = quizState.customQuestions.map((q, idx) => `
+                <div class="bg-white p-3 rounded-xl border space-y-2 text-xs">
+                    <div class="flex gap-2 items-center">
+                        <input type="text" value="${q.title}" oninput="quizState.customQuestions[${idx}].title=this.value" class="flex-1 px-2.5 py-1.5 border rounded-lg font-bold">
+                        <select onchange="quizState.customQuestions[${idx}].qType=this.value; renderAdminQuestions();" class="px-2 py-1.5 border rounded-lg bg-white">
+                            <option value="single" ${q.qType==='single'?'selected':''}>Múltipla Escolha</option>
+                            <option value="phone" ${q.qType==='phone'?'selected':''}>Telefone (DDD+9dig)</option>
+                            <option value="rating" ${q.qType==='rating'?'selected':''}>Escala (1-5)</option>
+                            <option value="text" ${q.qType==='text'?'selected':''}>Texto Aberto</option>
+                        </select>
+                        <button onclick="quizState.customQuestions.splice(${idx},1); renderAdminQuestions();" class="text-rose-500 p-1.5"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="flex items-center justify-between pt-1 border-t">
+                        <label class="flex items-center gap-1.5 cursor-pointer font-semibold text-gray-600">
+                            <input type="checkbox" ${q.required !== false ? 'checked' : ''} onchange="quizState.customQuestions[${idx}].required = this.checked" class="w-3.5 h-3.5 text-primary rounded">
+                            <span>Obrigatória</span>
+                        </label>
+                    </div>
+                    ${q.qType !== 'text' && q.qType !== 'rating' && q.qType !== 'phone' ? `
+                        <div class="space-y-1 pt-1">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase">Alternativas:</span>
+                            ${q.options.map((opt, oIdx) => `
+                                <div class="flex gap-1 items-center">
+                                    <input type="text" value="${opt}" oninput="quizState.customQuestions[${idx}].options[${oIdx}]=this.value" class="flex-1 px-2 py-1 border rounded text-xs">
+                                    <button onclick="quizState.customQuestions[${idx}].options.splice(${oIdx},1); renderAdminQuestions();" class="text-gray-400 hover:text-rose-500 p-1"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            `).join('')}
+                            <button onclick="quizState.customQuestions[${idx}].options.push('Nova Opção'); renderAdminQuestions();" class="text-[11px] text-primary font-bold"><i class="fa-solid fa-plus"></i> Adicionar Opção</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderAdminPrices() {
+            const tbody = document.getElementById('adminPricesTableBody');
+            tbody.innerHTML = quizState.unimedTable.map((row, idx) => `
+                <tr>
+                    <td class="p-1.5"><input type="text" value="${row.faixas}" oninput="quizState.unimedTable[${idx}].faixas=this.value" class="w-full px-2 py-1 border rounded text-xs font-semibold"></td>
+                    <td class="p-1.5"><input type="number" value="${row.min}" oninput="quizState.unimedTable[${idx}].min=parseFloat(this.value)||0" class="w-16 px-2 py-1 border rounded text-xs"></td>
+                    <td class="p-1.5"><input type="number" value="${row.max}" oninput="quizState.unimedTable[${idx}].max=parseFloat(this.value)||0" class="w-16 px-2 py-1 border rounded text-xs"></td>
+                    <td class="p-1.5"><input type="number" step="0.01" value="${row.p1}" oninput="quizState.unimedTable[${idx}].p1=parseFloat(this.value)||0" class="w-20 px-2 py-1 border rounded text-xs"></td>
+                    <td class="p-1.5"><input type="number" step="0.01" value="${row.p2}" oninput="quizState.unimedTable[${idx}].p2=parseFloat(this.value)||0" class="w-20 px-2 py-1 border rounded text-xs"></td>
+                    <td class="p-1.5"><input type="number" step="0.01" value="${row.p3}" oninput="quizState.unimedTable[${idx}].p3=parseFloat(this.value)||0" class="w-20 px-2 py-1 border rounded text-xs"></td>
+                    <td class="p-1.5 text-center"><button onclick="quizState.unimedTable.splice(${idx},1); renderAdminPrices();" class="text-rose-500 hover:text-rose-700 p-1"><i class="fa-solid fa-trash"></i></button></td>
+                </tr>
+            `).join('');
+        }
+
+        function addPriceRow() {
+            quizState.unimedTable.push({ faixas: "Nova Faixa", min: 0, max: 0, p1: 0.00, p2: 0.00, p3: 0.00 });
+            renderAdminPrices();
+        }
+
+        function addNewCustomQuestion() {
+            quizState.customQuestions.push({ title: "Nova Pergunta", qType: "single", required: true, options: ["Sim", "Não"] });
+            renderAdminQuestions();
+        }
+
+        function deleteAllQuestions() {
+            if (confirm("Tem certeza que deseja apagar todas as perguntas extras?")) {
+                quizState.customQuestions = [];
+                renderAdminQuestions();
+            }
+        }
+
+        async function saveAdminChanges() {
+            quizState.whatsappNumber = document.getElementById('adminPhoneInput').value.trim();
+            quizState.whatsappMessage = document.getElementById('adminWaMsgInput').value.trim();
+            
+            await saveConfigToSupabase();
+            closeAdminModal();
+            buildWorkflow();
+            restartQuiz();
+            alert("Alterações salvas com sucesso no Supabase!");
+        }
+    </script>
+</body>
+</html>
